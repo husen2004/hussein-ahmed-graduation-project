@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.env
+.venv/
+/database/backups/
+*.db-wal
+*.db-shm
+*.production.db
