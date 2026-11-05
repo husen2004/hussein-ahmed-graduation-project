@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-05",
+  "dataset": "isolated fictional demonstration",
+  "receipt_id": 8,
+  "student_id": 12,
+  "before_printed": 0,
+  "after_printed": 1,
+  "physical_print_confirmed": false,
+  "sms_sent": false,
+  "files": [
+    "01_login.png",
+    "02_dashboard.png",
+    "03_students.png",
+    "04_fees.png",
+    "05_receipt_draft.png",
+    "06_receipt_confirmed.png",
+    "07_communications.png"
+  ]
+}

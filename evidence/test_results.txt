@@ -4,7 +4,7 @@ test_membership_debt_manual_campaign_and_printed_receipt (test_system.HusseinAhm
 test_pythonanywhere_wsgi_adapter (test_system.HusseinAhmedProjectIntegrationTests.test_pythonanywhere_wsgi_adapter) ... ok
 
 ----------------------------------------------------------------------
-Ran 4 tests in 2.794s
+Ran 4 tests in 2.058s
 
 OK
 🔄 تمت ترقية قاعدة البيانات: تمت إضافة حقل (أرشفة الطالب) بدلاً من الحذف النهائي

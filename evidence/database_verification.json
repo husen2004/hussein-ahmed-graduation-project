@@ -1,11 +1,10 @@
 {
-  "date": "2026-10-28",
+  "date": "2026-11-05",
   "integrity_check": [
     [
       "ok"
     ]
   ],
   "foreign_key_check": [],
-  "student_count": 13,
-  "application_tables": 36
+  "student_count": 13
 }
