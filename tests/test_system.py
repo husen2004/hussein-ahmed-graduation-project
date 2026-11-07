@@ -136,6 +136,19 @@ class HusseinAhmedProjectIntegrationTests(unittest.TestCase):
         self.assertEqual(headers.get("X-Frame-Options"), "DENY")
         self.assertIsNone(headers.get("Access-Control-Allow-Origin"))
 
+        # Never silently create an account with a known default password.
+        details = {"Username": "security_test", "FullName": "مستخدم اختبار", "Role": "teacher"}
+        status, _, _ = self.request("/api/users", method="POST", data=details)
+        self.assertEqual(status, 400)
+        status, _, _ = self.request("/api/users", method="POST", data={**details, "Password": "123456"})
+        self.assertEqual(status, 400)
+        status, created, _ = self.request("/api/users", method="POST", data={**details, "Password": "unique-long-password-123"})
+        self.assertEqual(status, 200, created)
+        status, _, _ = self.request(
+            f"/api/users/{created['UserID']}/change-password", method="POST", data={"Password": "1234"}
+        )
+        self.assertEqual(status, 400)
+
         conn = init_db.get_connection()
         conn.execute(
             "UPDATE UserSessions SET ExpiresAt=datetime('now','localtime','-1 minute') WHERE Token=?",
