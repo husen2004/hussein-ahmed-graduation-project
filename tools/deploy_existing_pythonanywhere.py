@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+from collections import Counter
 import hashlib
 import json
 import os
@@ -96,6 +97,77 @@ def smoke_source(src):
             compile(f.read(), rel, "exec")
 
 
+
+def key_data_state(path):
+    """Fingerprint existing business rows, ignoring later-added schema columns."""
+    protected = (
+        "Students", "Parents", "ParentStudents", "Enrollments", "Users",
+        "MonthlyFees", "Fees", "FeePayments", "Receipts", "CashDebts",
+        "CashDebtPayments", "Attendance", "Marks", "CommunicationCampaigns",
+        "CommunicationRecipients", "StudentClassMemberships",
+    )
+    out = {}
+    with sqlite3.connect(path) as conn:
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for table in protected:
+            if table not in tables:
+                continue
+            cols = [row[1] for row in conn.execute(f'PRAGMA table_info("{table}")')]
+            out[table] = cols
+    return out
+
+
+def fingerprint_table(path, table, columns):
+    # Compare rows using only the original columns; migration-added columns
+    # should not cause a false alarm. Any changed/new/deleted row DOES.
+    names = ",".join('"' + c.replace('"', '""') + '"' for c in columns)
+    row_digests = []
+    with sqlite3.connect(path) as conn:
+        for row in conn.execute(f'SELECT {names} FROM "{table}"'):
+            record = json.dumps([v.hex() if isinstance(v, bytes) else v for v in row],
+                                ensure_ascii=False, default=str, separators=(",", ":"))
+            row_digests.append(hashlib.sha256(record.encode("utf-8")).hexdigest())
+    return Counter(row_digests)
+
+
+def rehearse_live_migrations(src, live_db, workspace):
+    """Run init_database on a temporary backup, never on real hosted data."""
+    test_db = workspace / "migration_rehearsal.sqlite3"
+    db_backup(live_db, test_db)
+    original_tables = key_data_state(test_db)
+    before = {table: fingerprint_table(test_db, table, cols)
+              for table, cols in original_tables.items()}
+    env = os.environ.copy()
+    env["AFAQ_DB_PATH"] = str(test_db)
+    env["AFAQ_BACKUP_DIR"] = str(workspace / "migration_rehearsal_backups")
+    print("Rehearsing database initialization on an isolated copy of live SQLite...")
+    run([sys.executable, "-c", "from database.init_db import init_database; init_database()"], cwd=src, env=env)
+    with sqlite3.connect(test_db) as conn:
+        if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            die("Database migration rehearsal did not pass integrity_check")
+    after_tables = key_data_state(test_db)
+    changed = []
+    for table, columns in original_tables.items():
+        if table not in after_tables or not set(columns).issubset(after_tables[table]):
+            changed.append(table + " (removed table/column)")
+            continue
+        updated_rows = fingerprint_table(test_db, table, columns)
+        if table == "MonthlyFees":
+            # On startup the existing application generates this month's new
+            # invoices. Permit only inserts; protect all prior invoice values.
+            if any(updated_rows[d] < old_count for d, old_count in before[table].items()):
+                changed.append(table + " (previous fee values removed/modified)")
+            elif sum(updated_rows.values()) > sum(before[table].values()):
+                print("NOTICE:", sum(updated_rows.values()) - sum(before[table].values()),
+                      "new monthly fee rows would be generated at reload (existing app behavior).")
+        elif updated_rows != before[table]:
+            changed.append(table)
+    if changed:
+        die("Database initialization would alter existing business records in "
+            + ", ".join(changed) + ". No live deployment was performed. "
+            "Review migrations manually before updating the live account.")
+    print("Database migration rehearsal passed: existing business records unchanged.")
+
 def db_backup(source, destination):
     with sqlite3.connect(source.as_uri() + "?mode=ro", uri=True, timeout=30) as input_db:
         with sqlite3.connect(destination) as output_db:
@@ -148,7 +220,7 @@ def restore_from(backup, reload, wsgi, url):
         else:
             dest.unlink(missing_ok=True)
     print("Restored application CODE from:", backup)
-    print("The production database was NOT modified or overwritten.")
+    print("The production database was not restored/replaced by this rollback.")
     print("Database snapshot in backup is preserved for manual recovery only.")
     reload_and_check(wsgi, reload, url)
 
@@ -187,6 +259,7 @@ def main():
                 print("SAME   ", rel)
         print("Running staged integration tests against isolated test data...")
         smoke_source(src)
+        rehearse_live_migrations(src, db_path, Path(d))
         if not args.apply:
             print("READ-ONLY CHECK PASSED. No hosted application files were changed.")
             return
@@ -216,7 +289,7 @@ def main():
             print("Copy failed; restoring application code from backup...")
             restore_from(backup, False, wsgi, args.health_url)
             raise
-    print("Code update completed successfully. Live SQLite database remains unchanged.")
+    print("Code update completed. The existing SQLite database file was not replaced.")
     print("Rollback command:")
     print(f"  python3 tools/deploy_existing_pythonanywhere.py --rollback '{backup}' --reload")
     reload_and_check(wsgi, args.reload, args.health_url)
