@@ -2084,9 +2084,13 @@ class APIHandler(BaseHTTPRequestHandler):
 
         elif path == '/api/users':
             if user.get('Role') != 'admin': self.send_json({"error":"للمدير فقط"},403); return
-            username=(data.get('Username') or '').strip(); password=data.get('Password') or '123456'; fullname=(data.get('FullName') or '').strip(); role=data.get('Role') or 'teacher'
+            username=(data.get('Username') or '').strip(); password=data.get('Password') or ''; fullname=(data.get('FullName') or '').strip(); role=data.get('Role') or 'teacher'
             if not username or not fullname:
                 self.send_json({"error":"اسم المستخدم والاسم الكامل مطلوبان"},400); return
+            if len(password) < 10:
+                self.send_json({"error":"أدخل كلمة مرور خاصة لا تقل عن 10 أحرف عند إنشاء المستخدم"},400); return
+            if role not in ('admin', 'teacher'):
+                self.send_json({"error":"دور المستخدم غير صالح"},400); return
             try:
                 uid=execute_db("INSERT INTO Users (Username,PasswordHash,FullName,Role,IsActive,CanEnterMarks) VALUES (?,?,?,?,?,?)", (username, hash_password(password), fullname, role, 1 if data.get('IsActive',1) else 0, 1 if data.get('CanEnterMarks',1) else 0))
             except sqlite3.IntegrityError:
@@ -2107,9 +2111,10 @@ class APIHandler(BaseHTTPRequestHandler):
         elif path.startswith('/api/users/') and path.endswith('/change-password'):
             if user.get('Role') != 'admin': self.send_json({"error":"للمدير فقط"},403); return
             uid=path.split('/')[3]; pwd=data.get('Password') or ''
-            if len(pwd)<4: self.send_json({"error":"كلمة المرور يجب أن تكون 4 أحرف على الأقل"},400); return
+            if len(pwd)<10: self.send_json({"error":"كلمة المرور يجب ألا تقل عن 10 أحرف"},400); return
             execute_db("UPDATE Users SET PasswordHash=? WHERE UserID=?", (hash_password(pwd), uid))
-            self.send_json({"message":"تم تغيير كلمة المرور"})
+            execute_db("DELETE FROM UserSessions WHERE UserID=?", (uid,))
+            self.send_json({"message":"تم تغيير كلمة المرور وإلغاء جلسات المستخدم القديمة"})
 
         elif path == '/api/students':
             if user.get('Role') != 'admin': self.send_json({"error":"إضافة الطلاب للمدير فقط"},403); return
