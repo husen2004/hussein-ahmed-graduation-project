@@ -1174,7 +1174,7 @@ textarea { resize: vertical; min-height: 80px; }
       <input type="hidden" id="u-id">
       <div class="form-grid">
         <div class="form-group"><label>اسم المستخدم *</label><input id="u-username" placeholder="مثال: teacher1"></div>
-        <div class="form-group"><label>كلمة المرور</label><input id="u-password" type="password" placeholder="اتركها فارغة عند التعديل"></div>
+        <div class="form-group"><label>كلمة المرور (10 أحرف على الأقل عند الإضافة)</label><input id="u-password" type="password" autocomplete="new-password" placeholder="مطلوبة للمستخدم الجديد، فارغة عند التعديل"></div>
         <div class="form-group full"><label>الاسم الكامل *</label><input id="u-fullname" placeholder="اسم المدير أو المعلم"></div>
         <div class="form-group"><label>الدور</label><select id="u-role" onchange="toggleTeacherFields()"><option value="teacher">معلم</option><option value="admin">مدير</option></select></div>
         <div class="form-group"><label>الحالة</label><select id="u-active"><option value="1">نشط</option><option value="0">موقوف</option></select></div>
@@ -1204,7 +1204,7 @@ textarea { resize: vertical; min-height: 80px; }
 <div class="modal-overlay" id="pass-modal">
   <div class="modal modal-sm">
     <div class="modal-header"><h3>🔑 تغيير كلمة المرور</h3><button class="modal-close" onclick="closeModal('pass-modal')">✕</button></div>
-    <div class="modal-body"><input type="hidden" id="pass-user-id"><div class="form-group full"><label>كلمة المرور الجديدة</label><input id="pass-new" type="password" placeholder="كلمة مرور جديدة"></div></div>
+    <div class="modal-body"><input type="hidden" id="pass-user-id"><div class="form-group full"><label>كلمة المرور الجديدة</label><input id="pass-new" type="password" autocomplete="new-password" placeholder="10 أحرف على الأقل"></div></div>
     <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('pass-modal')">إلغاء</button><button class="btn btn-primary" onclick="savePassword()">حفظ</button></div>
   </div>
 </div>
