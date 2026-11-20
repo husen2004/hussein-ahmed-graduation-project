@@ -805,17 +805,26 @@ def init_database():
     if "PrintedAt" not in existing_receipt_cols:
         c.execute("ALTER TABLE FeeReceipts ADD COLUMN PrintedAt TEXT")
 
-    # ===== التحويل لنظام الرسوم الشهرية (مرة واحدة فقط) =====
-    # يُحذف كل ما كان في جدول الرسوم القديم (Fees) وإيصالاته المرتبطة به، ويبدأ النظام
-    # بصفحة نظيفة تماماً للرسوم الشهرية التلقائية (MonthlyFees)، حسب طلب صاحب النظام.
-    # نستخدم AppSettings كعلامة لضمان أن هذا التحويل يحدث مرة واحدة فقط ولا يتكرر
-    # في كل تشغيل قادم للبرنامج (وإلا سيحذف فواتير الأشهر الجديدة التي تتولّد تلقائياً!)
+    # ===== حارس تحويل الرسوم الشهرية (مرة واحدة فقط) =====
+    # لا يجوز حذف رسوم أو إيصالات مالية قديمة عند تشغيل إصدار أحدث، خصوصاً
+    # عند نشر مشروع التخرج على قاعدة بيانات موجودة في PythonAnywhere.
+    # يكتمل الانتقال تلقائياً للقاعدة الجديدة فقط، أو للقاعدة التي لا تتضمن
+    # أية رسوم أو إيصالات سابقة. أي حالة قد تؤدي لفقد البيانات تتطلب ترحيلاً
+    # يدوياً ومراجعة سجلاتها قبل بدء الخادم.
     migration_flag = c.execute("SELECT SettingValue FROM AppSettings WHERE SettingKey='monthly_fees_migration_done'").fetchone()
     if not migration_flag:
-        c.execute("DELETE FROM FeeReceipts")
-        c.execute("DELETE FROM Fees")
+        old_fees = c.execute("SELECT COUNT(*) FROM Fees").fetchone()[0]
+        old_receipts = c.execute("SELECT COUNT(*) FROM FeeReceipts").fetchone()[0]
+        if old_fees or old_receipts:
+            conn.rollback()
+            conn.close()
+            raise RuntimeError(
+                "وقف تهيئة قاعدة البيانات لحماية السجلات المالية: "
+                f"تم العثور على {old_fees} رسوم و{old_receipts} إيصالات قبل اعتماد نظام الرسوم الشهرية. "
+                "احفظ نسخة احتياطية وراجع الترحيل اليدوي، ولا تحذف الإيصالات."
+            )
         c.execute("INSERT OR REPLACE INTO AppSettings (SettingKey, SettingValue) VALUES ('monthly_fees_migration_done', datetime('now','localtime'))")
-        print("🔄 تمت ترقية قاعدة البيانات: تم تصفير المبلغ المطلوب (حذف كل الفواتير والإيصالات القديمة) والبدء بنظام الرسوم الشهرية التلقائية")
+        print("🔄 تم تفعيل نظام الرسوم الشهرية دون حذف سجلات مالية سابقة")
 
     # تحديث أسماء الصفوف القديمة (الأول الابتدائي / الأول الإعدادي / الأول الثانوي ...)
     # إلى التسمية الجديدة المرتبة برقم الصف فقط (الأول .. الثاني عشر)
