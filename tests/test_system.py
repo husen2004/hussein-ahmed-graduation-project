@@ -260,6 +260,18 @@ class HusseinAhmedProjectIntegrationTests(unittest.TestCase):
         self.assertEqual(latest["ReceiptID"], receipt_id)
         self.assertEqual(latest["IsPrinted"], 1)
 
+        # A missing one-time migration marker must never wipe older receipts.
+        with init_db.get_connection() as conn:
+            initial_receipts = conn.execute("SELECT COUNT(*) FROM FeeReceipts").fetchone()[0]
+            conn.execute("DELETE FROM AppSettings WHERE SettingKey='monthly_fees_migration_done'")
+            conn.commit()
+        self.assertGreater(initial_receipts, 0)
+        with self.assertRaisesRegex(RuntimeError, "حماية السجلات المالية"):
+            init_db.init_database()
+        with init_db.get_connection() as conn:
+            remaining_receipts = conn.execute("SELECT COUNT(*) FROM FeeReceipts").fetchone()[0]
+        self.assertEqual(remaining_receipts, initial_receipts)
+
     def test_archive_requires_reason_and_hides_student_from_active_finance(self):
         student_id = self.create_student()
         status, body, _ = self.request(
