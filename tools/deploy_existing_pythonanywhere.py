@@ -63,6 +63,9 @@ def validate_project(project, db_path):
         integrity = conn.execute("PRAGMA quick_check").fetchone()[0]
         if integrity != "ok":
             die(f"Database quick_check failed: {integrity}")
+        foreign_keys = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if foreign_keys:
+            die(f"Database foreign-key violations: {len(foreign_keys)}")
         count = conn.execute("SELECT count(*) FROM sqlite_master WHERE type='table'").fetchone()[0]
     print(f"Existing project: {project}")
     print(f"Existing database: {db_path} ({count} SQLite tables, quick_check OK)")
@@ -102,9 +105,11 @@ def key_data_state(path):
     """Fingerprint existing business rows, ignoring later-added schema columns."""
     protected = (
         "Students", "Parents", "ParentStudents", "Enrollments", "Users",
-        "MonthlyFees", "Fees", "FeePayments", "Receipts", "CashDebts",
-        "CashDebtPayments", "Attendance", "Marks", "CommunicationCampaigns",
-        "CommunicationRecipients", "StudentClassMemberships",
+        "MonthlyFees", "Fees", "FeeReceipts", "StudentFinanceAccounts",
+        "StudentFinanceLedger", "CashDebts", "CashDebtPayments", "Attendance",
+        "StudentMarks", "CommunicationCampaigns", "CommunicationRecipients",
+        "StudentClassMemberships", "GraduationProjects", "TeacherProfiles",
+        "TeacherGrades", "TeacherSubjects", "GradeSubjects",
     )
     out = {}
     with sqlite3.connect(path) as conn:
